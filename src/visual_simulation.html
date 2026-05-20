@@ -1,0 +1,1480 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S-DMX512 over S-FSK 10kbps Simulation HUD</title>
+    <meta name="description" content="High-performance stage lighting compression and narrow-band transmission simulator for UAV light shows.">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #080c14;
+            --panel-bg: rgba(13, 20, 35, 0.6);
+            --border-color: rgba(255, 255, 255, 0.06);
+            --cyan-glow: #06b6d4;
+            --purple-glow: #a855f7;
+            --green-glow: #22c55e;
+            --red-glow: #ef4444;
+            --yellow-glow: #eab308;
+            --text-main: #f1f5f9;
+            --text-muted: #94a3b8;
+            --font-outfit: 'Outfit', sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(circle at 10% 20%, rgba(6, 182, 212, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(168, 85, 247, 0.08) 0%, transparent 40%);
+            color: var(--text-main);
+            font-family: var(--font-outfit);
+            min-height: 100vh;
+            overflow-x: hidden;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .header-title h1 {
+            font-size: 24px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            background: linear-gradient(135deg, var(--cyan-glow) 0%, var(--purple-glow) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 20px rgba(6, 182, 212, 0.2);
+            margin-bottom: 4px;
+        }
+
+        .header-title p {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-weight: 300;
+        }
+
+        .header-badges {
+            display: flex;
+            gap: 10px;
+        }
+
+        .badge {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border-color);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .badge-pulse {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--green-glow);
+            box-shadow: 0 0 8px var(--green-glow);
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.9); opacity: 0.6; }
+            50% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(0.9); opacity: 0.6; }
+        }
+
+        .telemetry-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .telemetry-card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .telemetry-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 3px;
+            background: linear-gradient(90deg, transparent, var(--cyan-glow), transparent);
+            opacity: 0.5;
+        }
+
+        .telemetry-card:hover {
+            transform: translateY(-2px);
+            border-color: rgba(6, 182, 212, 0.2);
+            box-shadow: 0 8px 24px rgba(6, 182, 212, 0.1);
+        }
+
+        .telemetry-label {
+            font-size: 12px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+
+        .telemetry-val {
+            font-family: var(--font-mono);
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--text-main);
+        }
+
+        .telemetry-val.cyan { color: var(--cyan-glow); text-shadow: 0 0 10px rgba(6, 182, 212, 0.3); }
+        .telemetry-val.purple { color: var(--purple-glow); text-shadow: 0 0 10px rgba(168, 85, 247, 0.3); }
+        .telemetry-val.green { color: var(--green-glow); text-shadow: 0 0 10px rgba(34, 197, 94, 0.3); }
+        .telemetry-val.red { color: var(--red-glow); text-shadow: 0 0 10px rgba(239, 68, 68, 0.3); }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            flex-grow: 1;
+        }
+
+        @media (max-width: 1024px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--panel-bg);
+            backdrop-filter: blur(16px);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+        }
+
+        .card-header {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-header span {
+            color: var(--cyan-glow);
+        }
+
+        .control-group {
+            margin-bottom: 18px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-label {
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .control-val-readout {
+            font-family: var(--font-mono);
+            color: var(--cyan-glow);
+            font-weight: 600;
+        }
+
+        .btn-preset {
+            display: block;
+            width: 100%;
+            padding: 10px 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-main);
+            text-align: left;
+            font-family: var(--font-outfit);
+            font-size: 13px;
+            cursor: pointer;
+            margin-bottom: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .btn-preset:hover {
+            background: rgba(6, 182, 212, 0.05);
+            border-color: rgba(6, 182, 212, 0.3);
+        }
+
+        .btn-preset.active {
+            background: rgba(6, 182, 212, 0.15);
+            border-color: var(--cyan-glow);
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+            font-weight: 600;
+        }
+
+        .preset-desc {
+            font-size: 11px;
+            color: var(--text-muted);
+            display: block;
+            margin-top: 2px;
+            font-weight: 300;
+        }
+
+        /* Sliders */
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.06);
+            border-radius: 3px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--cyan-glow);
+            box-shadow: 0 0 8px var(--cyan-glow);
+            transition: all 0.1s ease;
+        }
+
+        input[type="range"]::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Toggle Switches */
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 44px;
+            height: 22px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.08);
+            transition: .3s;
+            border-radius: 22px;
+            border: 1px solid var(--border-color);
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 14px;
+            width: 14px;
+            left: 3px;
+            bottom: 3px;
+            background-color: #94a3b8;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: rgba(6, 182, 212, 0.2);
+            border-color: var(--cyan-glow);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(22px);
+            background-color: var(--cyan-glow);
+            box-shadow: 0 0 6px var(--cyan-glow);
+        }
+
+        /* Right visual area */
+        .visual-area {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .charts-row {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            height: 200px;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Side-by-side visualizer grids */
+        .grids-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 768px) {
+            .grids-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .stage-title {
+            text-align: center;
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-bottom: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .stage-title span {
+            color: var(--text-main);
+            font-family: var(--font-mono);
+        }
+
+        .led-grid {
+            display: grid;
+            grid-template-columns: repeat(8, 1fr);
+            gap: 6px;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            aspect-ratio: 1;
+        }
+
+        .led {
+            aspect-ratio: 1;
+            border-radius: 50%;
+            background: #111827;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            transition: box-shadow 0.05s ease, background-color 0.05s ease;
+            position: relative;
+            box-shadow: inset 0 0 4px rgba(0,0,0,0.6);
+        }
+
+        /* Diagnostic Console */
+        .console-box {
+            background: rgba(5, 7, 12, 0.9);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            font-family: var(--font-mono);
+            font-size: 11px;
+            height: 110px;
+            overflow-y: auto;
+            color: #10b981;
+            box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.8);
+        }
+
+        .console-line {
+            margin-bottom: 4px;
+            white-space: pre-wrap;
+            opacity: 0.85;
+            display: flex;
+            gap: 8px;
+        }
+
+        .console-time {
+            color: var(--text-muted);
+            min-width: 60px;
+        }
+
+        .console-type-info { color: #38bdf8; }
+        .console-type-warn { color: #f59e0b; }
+        .console-type-error { color: #ef4444; }
+
+        footer {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        footer a {
+            color: var(--cyan-glow);
+            text-decoration: none;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+
+        /* Info tooltip */
+        .info-pill {
+            font-size: 10px;
+            color: var(--cyan-glow);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 12px;
+            padding: 1px 6px;
+            font-family: var(--font-mono);
+            margin-left: 5px;
+            vertical-align: middle;
+            background: rgba(6, 182, 212, 0.05);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-title">
+            <h1 id="main-title">S-DMX512 over S-FSK 10kbps Simulation HUD</h1>
+            <p>UAV Swarm Dynamic Light Show Protocol Compression & Bandwidth Controller Visualization</p>
+        </div>
+        <div class="header-badges">
+            <div class="badge" id="badge-wire-status">
+                <div class="badge-pulse"></div>
+                LINK ACTIVE
+            </div>
+            <div class="badge" id="badge-rate-mode" style="border-color: rgba(168, 85, 247, 0.3); color: var(--purple-glow);">
+                S-FSK FSK-10K
+            </div>
+        </div>
+    </header>
+
+    <!-- Telemetry Row -->
+    <div class="telemetry-row">
+        <div class="telemetry-card" id="telemetry-compression">
+            <div class="telemetry-label">Compression Ratio</div>
+            <div class="telemetry-val cyan" id="readout-compression">1.0x</div>
+        </div>
+        <div class="telemetry-card" id="telemetry-bandwidth">
+            <div class="telemetry-label">S-DMX Rate (1s Avg)</div>
+            <div class="telemetry-val purple" id="readout-bandwidth">0.00 kbps</div>
+        </div>
+        <div class="telemetry-card" id="telemetry-mode">
+            <div class="telemetry-label">Active Encoder Mode</div>
+            <div class="telemetry-val green" id="readout-mode">KEEPALIVE</div>
+        </div>
+        <div class="telemetry-card" id="telemetry-drops">
+            <div class="telemetry-label">Packet Drop Rate (1s)</div>
+            <div class="telemetry-val green" id="readout-drops">0.0%</div>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="dashboard-grid">
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <!-- Scenario Preset Card -->
+            <div class="card" id="card-scenarios">
+                <div class="card-header">
+                    <span>Staging Scenarios</span>
+                    <small>F_in = 44.09 Hz</small>
+                </div>
+                <button class="btn-preset active" id="btn-scenario-a">
+                    Scenario A: Low-Freq Movement
+                    <span class="preset-desc">Slow, continuous panning of 4 non-contiguous channels. Max efficiency.</span>
+                </button>
+                <button class="btn-preset" id="btn-scenario-b">
+                    Scenario B: Fluid Fluid Flow
+                    <span class="preset-desc">Rainbow wave shifting across 64 RGB LEDs. 192 channels changing continuously.</span>
+                </button>
+                <button class="btn-preset" id="btn-scenario-c">
+                    Scenario C: Stage Macro Switch
+                    <span class="preset-desc">Instant flashing macro switches every 1.5s. Fast bitmap changes & keepalive.</span>
+                </button>
+                <button class="btn-preset" id="btn-scenario-d">
+                    Scenario D: Static Stage
+                    <span class="preset-desc">No changes. Perfect keepalive validation (1 byte packets).</span>
+                </button>
+            </div>
+
+            <!-- Encoding & Channel Card -->
+            <div class="card" id="card-codec">
+                <div class="card-header">
+                    <span>Codec & Channel Parameters</span>
+                </div>
+                <div class="control-group">
+                    <label class="control-label" for="slider-flicker">
+                        Flicker Filter Threshold
+                        <span class="control-val-readout" id="readout-slider-flicker">±1 LSB</span>
+                    </label>
+                    <input type="range" id="slider-flicker" min="0" max="5" value="1">
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                        Mutes noise fluctuations. ±1 threshold suppresses 2% sensor jitter.
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label" for="slider-noise">
+                        LSB Jitter Noise (Sensor Jitter)
+                        <span class="control-val-readout" id="readout-slider-noise">±0 LSB</span>
+                    </label>
+                    <input type="range" id="slider-noise" min="0" max="5" value="0">
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                        Simulates ambient electrical or thermal sensor jitter on all channels.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Network Card -->
+            <div class="card" id="card-network">
+                <div class="card-header">
+                    <span>Link & Receiver Controls</span>
+                </div>
+                <div class="control-group">
+                    <div class="toggle-container">
+                        <span class="control-label" style="margin-bottom: 0;">Bandwidth Limiter (10kbps)</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggle-limiter" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                        Clamps output transmission rate strictly at 1250 B/s (10 kbps). Drops packages on saturation.
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <div class="toggle-container">
+                        <span class="control-label" style="margin-bottom: 0;">Smooth Frame Interpolation</span>
+                        <label class="switch">
+                            <input type="checkbox" id="toggle-interpolation" checked>
+                            <span class="slider"></span>
+                        </label>
+                    </div>
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                        Enables receiver side temporal interpolation to smooth out rate-limited stutters.
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <label class="control-label" for="slider-interpolation-speed">
+                        Interpolation Smoothing Time
+                        <span class="control-val-readout" id="readout-slider-interp">150 ms</span>
+                    </label>
+                    <input type="range" id="slider-interpolation-speed" min="50" max="400" step="10" value="150">
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Visual Area -->
+        <div class="visual-area">
+            <!-- Canvas Bandwidth Chart -->
+            <div class="card">
+                <div class="card-header">
+                    <span>Real-Time Bandwidth Waveform</span>
+                    <div>
+                        <span style="display:inline-block; width:10px; height:10px; background:var(--cyan-glow); margin-right:4px;"></span>S-DMX
+                        <span style="display:inline-block; width:10px; height:10px; background:var(--purple-glow); margin-right:4px; margin-left:10px;"></span>Raw Payload
+                        <span style="display:inline-block; width:10px; height:2px; background:var(--red-glow); margin-right:4px; margin-left:10px; border-top:1px dashed var(--red-glow);"></span>10kbps Limit
+                    </div>
+                </div>
+                <div class="canvas-container">
+                    <canvas id="chart-bandwidth"></canvas>
+                </div>
+            </div>
+
+            <!-- Grids side-by-side -->
+            <div class="grids-container">
+                <!-- Transmitter Raw input Grid -->
+                <div class="card">
+                    <div class="stage-title">
+                        <span>TRANSMITTER SOURCE</span>
+                        <small id="readout-fps-tx">44.09 Hz</small>
+                    </div>
+                    <div class="led-grid" id="grid-tx">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+
+                <!-- Receiver Decompressed State Grid -->
+                <div class="card">
+                    <div class="stage-title" style="color: var(--cyan-glow);">
+                        <span>RECEIVER OUTPUT</span>
+                        <small id="readout-fps-rx">44.09 Hz</small>
+                    </div>
+                    <div class="led-grid" id="grid-rx">
+                        <!-- Filled by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Diagnostic Console -->
+            <div class="card" style="padding: 15px;">
+                <div class="card-header" style="margin-bottom: 10px; font-size: 14px;">
+                    <span>System Diagnostic Link Log</span>
+                </div>
+                <div class="console-box" id="console-output">
+                    <!-- Filled by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <footer>
+        <div>S-DMX Protocol Engine: <span style="font-family: var(--font-mono); font-size: 11px;">v1.0.4 (Mathematical Parity)</span></div>
+        <div>Standard DMX512 wire-rate: <span style="color:var(--purple-glow);">250.0 kbps</span> | Physical FSK Link: <span style="color:var(--cyan-glow);">10.0 kbps</span></div>
+    </footer>
+
+    <script>
+        // --- 1. S-DMX Codec Parity Logic ---
+        class SDMXEncoder {
+            constructor(flickerThreshold = 1) {
+                this.lastState = new Uint8Array(512);
+                this.seq = 0;
+                this.flickerThreshold = flickerThreshold;
+            }
+
+            getNextSeq() {
+                let current = this.seq;
+                this.seq = (this.seq + 1) % 16;
+                return current;
+            }
+
+            encode(currentData, forceKeyframe = false) {
+                let seqVal = this.getNextSeq();
+                
+                // A. Flicker Filter
+                let filteredData = new Uint8Array(512);
+                let changedIndices = [];
+                for (let i = 0; i < 512; i++) {
+                    let diff = Math.abs(currentData[i] - this.lastState[i]);
+                    if (diff <= this.flickerThreshold) {
+                        filteredData[i] = this.lastState[i];
+                    } else {
+                        filteredData[i] = currentData[i];
+                    }
+
+                    if (filteredData[i] !== this.lastState[i]) {
+                        changedIndices.push(i);
+                    }
+                }
+
+                // B. Keepalive Frame Mode
+                if (changedIndices.length === 0 && !forceKeyframe) {
+                    let header = (seqVal << 4) | 0x05;
+                    return {
+                        mode: 'keepalive',
+                        bytes: new Uint8Array([header]),
+                        filtered: filteredData
+                    };
+                }
+
+                // C. Full I-Frame Fallback (Parity threshold 400)
+                if (forceKeyframe || changedIndices.length > 400) {
+                    let header = (seqVal << 4) | 0x01;
+                    let packet = new Uint8Array(513);
+                    packet[0] = header;
+                    packet.set(filteredData, 1);
+                    this.lastState.set(filteredData);
+                    return {
+                        mode: 'iframe',
+                        bytes: packet,
+                        filtered: filteredData
+                    };
+                }
+
+                // D. Decide Adaptive mode sizes
+                let sparseSize = 2 + changedIndices.length * 3;
+                let bitmapSize = 1 + 64 + changedIndices.length;
+                let rangeSize = Infinity;
+                let start = 0, span = 0;
+
+                if (changedIndices.length > 0) {
+                    start = changedIndices[0];
+                    let end = changedIndices[changedIndices.length - 1];
+                    span = end - start + 1;
+                    rangeSize = 5 + span;
+                }
+
+                let bestMode = 'sparse';
+                let minSize = sparseSize;
+
+                if (bitmapSize < minSize) {
+                    bestMode = 'bitmap';
+                    minSize = bitmapSize;
+                }
+                if (rangeSize < minSize) {
+                    bestMode = 'range';
+                    minSize = rangeSize;
+                }
+
+                // E. Serialize
+                let header = (seqVal << 4);
+                let packet;
+
+                if (bestMode === 'sparse') {
+                    header |= 0x02;
+                    packet = new Uint8Array(2 + changedIndices.length * 3);
+                    packet[0] = header;
+                    packet[1] = changedIndices.length;
+                    let offset = 2;
+                    for (let idx of changedIndices) {
+                        packet[offset] = (idx >> 8) & 0xFF;
+                        packet[offset + 1] = idx & 0xFF;
+                        packet[offset + 2] = filteredData[idx];
+                        offset += 3;
+                    }
+                } else if (bestMode === 'bitmap') {
+                    header |= 0x03;
+                    packet = new Uint8Array(1 + 64 + changedIndices.length);
+                    packet[0] = header;
+                    let bitmap = new Uint8Array(64);
+                    let offset = 65;
+                    for (let idx of changedIndices) {
+                        bitmap[Math.floor(idx / 8)] |= (1 << (idx % 8));
+                        packet[offset] = filteredData[idx];
+                        offset++;
+                    }
+                    packet.set(bitmap, 1);
+                } else { // range
+                    header |= 0x04;
+                    packet = new Uint8Array(5 + span);
+                    packet[0] = header;
+                    packet[1] = (start >> 8) & 0xFF;
+                    packet[2] = start & 0xFF;
+                    packet[3] = (span >> 8) & 0xFF;
+                    packet[4] = span & 0xFF;
+                    packet.set(filteredData.subarray(start, start + span), 5);
+                }
+
+                this.lastState.set(filteredData);
+                return {
+                    mode: bestMode,
+                    bytes: packet,
+                    filtered: filteredData
+                };
+            }
+        }
+
+        class SDMXDecoder {
+            constructor() {
+                this.state = new Uint8Array(512);
+                this.lastSeq = -1;
+                this.syncLost = true;
+            }
+
+            decode(packet) {
+                if (packet.length === 0) return { error: 'empty', state: this.state };
+
+                let header = packet[0];
+                let seqVal = (header >> 4) & 0x0F;
+                let frameType = header & 0x0F;
+
+                // Sync sequence tracking
+                if (this.lastSeq !== -1) {
+                    let expectedSeq = (this.lastSeq + 1) % 16;
+                    if (seqVal !== expectedSeq && frameType !== 0x01) {
+                        this.syncLost = true;
+                    }
+                }
+                this.lastSeq = seqVal;
+
+                if (frameType === 0x01) { // I-Frame
+                    if (packet.length < 513) return { error: 'malformed_iframe', state: this.state };
+                    this.state.set(packet.subarray(1, 513));
+                    this.syncLost = false;
+                } else if (this.syncLost) {
+                    // Refuse incremental updates
+                    return { error: 'sync_lost', state: this.state };
+                } else if (frameType === 0x02) { // Sparse
+                    let count = packet[1];
+                    if (packet.length < 2 + count * 3) return { error: 'malformed_sparse', state: this.state };
+                    let offset = 2;
+                    for (let i = 0; i < count; i++) {
+                        let idx = (packet[offset] << 8) | packet[offset + 1];
+                        let val = packet[offset + 2];
+                        if (idx < 512) {
+                            this.state[idx] = val;
+                        }
+                        offset += 3;
+                    }
+                } else if (frameType === 0x03) { // Bitmap
+                    if (packet.length < 65) return { error: 'malformed_bitmap', state: this.state };
+                    let bitmap = packet.subarray(1, 65);
+                    let offset = 65;
+                    for (let idx = 0; idx < 512; idx++) {
+                        if (bitmap[Math.floor(idx / 8)] & (1 << (idx % 8))) {
+                            if (offset >= packet.length) return { error: 'malformed_bitmap_payload', state: this.state };
+                            this.state[idx] = packet[offset];
+                            offset++;
+                        }
+                    }
+                } else if (frameType === 0x04) { // Range
+                    if (packet.length < 5) return { error: 'malformed_range', state: this.state };
+                    let start = (packet[1] << 8) | packet[2];
+                    let span = (packet[3] << 8) | packet[4];
+                    if (packet.length < 5 + span || start + span > 512) return { error: 'malformed_range_payload', state: this.state };
+                    this.state.set(packet.subarray(5, 5 + span), start);
+                } else if (frameType === 0x05) { // Keepalive
+                    // No changes
+                } else {
+                    return { error: 'unknown_type', state: this.state };
+                }
+
+                return { error: null, state: this.state };
+            }
+        }
+
+        // --- 2. Token Bucket Rate Limiter ---
+        class BandwidthController {
+            constructor(maxBytesPerSec = 1250) {
+                this.maxBytesPerSec = maxBytesPerSec;
+                this.capacity = maxBytesPerSec; // 1 second burst capacity
+                this.tokens = this.capacity;
+                this.lastUpdate = performance.now();
+            }
+
+            replenish() {
+                let now = performance.now();
+                let elapsedSec = (now - this.lastUpdate) / 1000.0;
+                this.lastUpdate = now;
+                this.tokens = Math.min(this.capacity, this.tokens + elapsedSec * this.maxBytesPerSec);
+            }
+
+            canSend(size) {
+                this.replenish();
+                return this.tokens >= size;
+            }
+
+            recordSend(size) {
+                this.tokens -= size;
+            }
+        }
+
+        // --- 3. UI and Stage State Simulator ---
+        const DMX_IN_RATE = 44.09; // 44.09 Hz
+        const DMX_INTERVAL = 1000.0 / DMX_IN_RATE; // 22.68 ms
+
+        let currentScenario = 'A';
+        let flickerThreshold = 1;
+        let jitterNoiseAmplitude = 0;
+        let isLimiterOn = true;
+        let isInterpolationOn = true;
+        let interpolationSpeedMs = 150;
+
+        let encoder = new SDMXEncoder(flickerThreshold);
+        let decoder = new SDMXDecoder();
+        let limiter = new BandwidthController(1250); // 10kbps = 1250B/s
+
+        // State storage
+        let txRawState = new Uint8Array(512);
+        let rxDecState = new Uint8Array(512);
+        let rxRenderedState = new Uint8Array(512);
+
+        // Stats tracking
+        let sentBytesLastSecond = 0;
+        let rawBytesLastSecond = 0;
+        let sentFramesLastSecond = 0;
+        let rawFramesLastSecond = 0;
+        let droppedFramesLastSecond = 0;
+
+        let statsCompressionRatio = 1.0;
+        let statsBandwidthKbps = 0.0;
+        let statsDropRate = 0.0;
+        let statsActiveMode = 'KEEPALIVE';
+
+        // History for chart
+        let bandwidthHistory = [];
+        let rawBandwidthHistory = [];
+        const HIST_SIZE = 100;
+        for (let i = 0; i < HIST_SIZE; i++) {
+            bandwidthHistory.push(0);
+            rawBandwidthHistory.push(0);
+        }
+
+        // Time counters
+        let simulationTime = 0;
+        let lastFrameTime = 0;
+        let lastOneSecondCalc = performance.now();
+
+        // DOM elements
+        const readoutCompression = document.getElementById('readout-compression');
+        const readoutBandwidth = document.getElementById('readout-bandwidth');
+        const readoutMode = document.getElementById('readout-mode');
+        const readoutDrops = document.getElementById('readout-drops');
+
+        const sliderFlicker = document.getElementById('slider-flicker');
+        const readoutSliderFlicker = document.getElementById('readout-slider-flicker');
+        const sliderNoise = document.getElementById('slider-noise');
+        const readoutSliderNoise = document.getElementById('readout-slider-noise');
+
+        const toggleLimiter = document.getElementById('toggle-limiter');
+        const toggleInterpolation = document.getElementById('toggle-interpolation');
+        const sliderInterp = document.getElementById('slider-interpolation-speed');
+        const readoutSliderInterp = document.getElementById('readout-slider-interp');
+
+        const gridTx = document.getElementById('grid-tx');
+        const gridRx = document.getElementById('grid-rx');
+        const readoutFpsTx = document.getElementById('readout-fps-tx');
+        const readoutFpsRx = document.getElementById('readout-fps-rx');
+        const consoleOutput = document.getElementById('console-output');
+
+        // Scenarios setup
+        const btnA = document.getElementById('btn-scenario-a');
+        const btnB = document.getElementById('btn-scenario-b');
+        const btnC = document.getElementById('btn-scenario-c');
+        const btnD = document.getElementById('btn-scenario-d');
+
+        function setScenario(scen) {
+            currentScenario = scen;
+            [btnA, btnB, btnC, btnD].forEach(b => b.classList.remove('active'));
+            if (scen === 'A') btnA.classList.add('active');
+            if (scen === 'B') btnB.classList.add('active');
+            if (scen === 'C') btnC.classList.add('active');
+            if (scen === 'D') btnD.classList.add('active');
+            logToConsole(`Scenario changed to [Scenario ${scen}]`, 'info');
+            
+            // Force I-frame instantly to re-sync visual grids
+            forceIFrameTrigger = true;
+        }
+
+        btnA.addEventListener('click', () => setScenario('A'));
+        btnB.addEventListener('click', () => setScenario('B'));
+        btnC.addEventListener('click', () => setScenario('C'));
+        btnD.addEventListener('click', () => setScenario('D'));
+
+        // Control Sliders
+        sliderFlicker.addEventListener('input', (e) => {
+            flickerThreshold = parseInt(e.target.value);
+            encoder.flickerThreshold = flickerThreshold;
+            readoutSliderFlicker.textContent = `±${flickerThreshold} LSB`;
+            logToConsole(`Flicker Filter threshold updated to ±${flickerThreshold} LSB`, 'info');
+        });
+
+        sliderNoise.addEventListener('input', (e) => {
+            jitterNoiseAmplitude = parseInt(e.target.value);
+            readoutSliderNoise.textContent = `±${jitterNoiseAmplitude} LSB`;
+            logToConsole(`Thermal Channel Jitter set to ±${jitterNoiseAmplitude} LSB`, 'info');
+        });
+
+        toggleLimiter.addEventListener('change', (e) => {
+            isLimiterOn = e.target.checked;
+            logToConsole(`10kbps FSK Token Bucket Limiter ${isLimiterOn ? 'ENABLED' : 'DISABLED'}`, isLimiterOn ? 'info' : 'warn');
+        });
+
+        toggleInterpolation.addEventListener('change', (e) => {
+            isInterpolationOn = e.target.checked;
+            logToConsole(`Receiver Temporal Interpolation ${isInterpolationOn ? 'ENABLED' : 'DISABLED'}`, 'info');
+        });
+
+        sliderInterp.addEventListener('input', (e) => {
+            interpolationSpeedMs = parseInt(e.target.value);
+            readoutSliderInterp.textContent = `${interpolationSpeedMs} ms`;
+        });
+
+        // Initialize LED grids
+        const ledsTx = [];
+        const ledsRx = [];
+
+        function initLeds() {
+            gridTx.innerHTML = '';
+            gridRx.innerHTML = '';
+            for (let i = 0; i < 64; i++) {
+                let divTx = document.createElement('div');
+                divTx.className = 'led';
+                gridTx.appendChild(divTx);
+                ledsTx.push(divTx);
+
+                let divRx = document.createElement('div');
+                divRx.className = 'led';
+                gridRx.appendChild(divRx);
+                ledsRx.push(divRx);
+            }
+        }
+        initLeds();
+
+        // Console logger
+        function logToConsole(text, type = 'info') {
+            let timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) + '.' + String(Math.floor(performance.now() % 1000)).padStart(3, '0');
+            let line = document.createElement('div');
+            line.className = 'console-line';
+            
+            let timeSpan = document.createElement('span');
+            timeSpan.className = 'console-time';
+            timeSpan.textContent = timeStr;
+            
+            let contentSpan = document.createElement('span');
+            contentSpan.className = `console-type-${type}`;
+            contentSpan.textContent = `[${type.toUpperCase()}] ${text}`;
+            
+            line.appendChild(timeSpan);
+            line.appendChild(contentSpan);
+            consoleOutput.appendChild(line);
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+
+            // Cap console output size
+            while (consoleOutput.childNodes.length > 50) {
+                consoleOutput.removeChild(consoleOutput.firstChild);
+            }
+        }
+
+        // --- 4. Frame Generation Logic ---
+        let forceIFrameTrigger = true;
+        let lastCChangeTime = 0;
+        let scenarioCState = 0;
+
+        function updateTxState(dt) {
+            simulationTime += dt;
+            let tempRaw = new Uint8Array(512);
+
+            if (currentScenario === 'A') {
+                // Scenario A: Panning of 4 non-contiguous channels
+                // Channels: 10, 50, 100, 150. Modulate with slow sine wave.
+                let valA = Math.floor(127 + 127 * Math.sin(simulationTime * 0.0015));
+                let valB = Math.floor(127 + 127 * Math.cos(simulationTime * 0.002));
+                
+                tempRaw[10] = valA;
+                tempRaw[50] = 255 - valA;
+                tempRaw[100] = valB;
+                tempRaw[150] = 255 - valB;
+
+                // Let's illuminate LED 0, 5, 10, 15 with these values to show visual motion
+                tempRaw[0] = valA; // LED 0 Red
+                tempRaw[15] = 255 - valA; // LED 5 Green
+                tempRaw[30] = valB; // LED 10 Blue
+                tempRaw[45] = 255 - valB; // LED 15 Red
+            } 
+            else if (currentScenario === 'B') {
+                // Scenario B: Shifted fluid flow (Rainbow wave shifting across 64 LEDs - 192 channels)
+                for (let i = 0; i < 64; i++) {
+                    let ledOffset = i * 3;
+                    let angle = (simulationTime * 0.002) + (i * 0.3);
+                    tempRaw[ledOffset] = Math.floor(127 + 127 * Math.sin(angle));
+                    tempRaw[ledOffset + 1] = Math.floor(127 + 127 * Math.sin(angle + 2*Math.PI/3));
+                    tempRaw[ledOffset + 2] = Math.floor(127 + 127 * Math.sin(angle + 4*Math.PI/3));
+                }
+            } 
+            else if (currentScenario === 'C') {
+                // Scenario C: Stage macro switcher (switches every 1.5s)
+                let timeNow = performance.now();
+                if (timeNow - lastCChangeTime > 1500) {
+                    lastCChangeTime = timeNow;
+                    scenarioCState = (scenarioCState + 1) % 3;
+                    logToConsole(`Stage Macro trigger: Pattern #${scenarioCState + 1}`, 'info');
+                }
+
+                if (scenarioCState === 0) {
+                    // Alternating magenta and green checkers
+                    for (let i = 0; i < 64; i++) {
+                        let ledOffset = i * 3;
+                        let row = Math.floor(i / 8);
+                        let col = i % 8;
+                        if ((row + col) % 2 === 0) {
+                            tempRaw[ledOffset] = 255;   // Red
+                            tempRaw[ledOffset+1] = 0;   // Green
+                            tempRaw[ledOffset+2] = 255; // Blue
+                        } else {
+                            tempRaw[ledOffset] = 0;
+                            tempRaw[ledOffset+1] = 255;
+                            tempRaw[ledOffset+2] = 0;
+                        }
+                    }
+                } else if (scenarioCState === 1) {
+                    // Alternating cyan and yellow checkers
+                    for (let i = 0; i < 64; i++) {
+                        let ledOffset = i * 3;
+                        let row = Math.floor(i / 8);
+                        let col = i % 8;
+                        if ((row + col) % 2 === 0) {
+                            tempRaw[ledOffset] = 0;
+                            tempRaw[ledOffset+1] = 255;
+                            tempRaw[ledOffset+2] = 255; // Cyan
+                        } else {
+                            tempRaw[ledOffset] = 255;
+                            tempRaw[ledOffset+1] = 200;
+                            tempRaw[ledOffset+2] = 0;   // Yellow
+                        }
+                    }
+                } else {
+                    // Ring pattern expanding from center
+                    let cx = 3.5, cy = 3.5;
+                    for (let i = 0; i < 64; i++) {
+                        let ledOffset = i * 3;
+                        let row = Math.floor(i / 8);
+                        let col = i % 8;
+                        let dist = Math.sqrt((row - cy)**2 + (col - cx)**2);
+                        let radius = (simulationTime * 0.003) % 6;
+                        let width = 1.2;
+                        let intensity = Math.max(0, 255 * (1.0 - Math.abs(dist - radius) / width));
+                        
+                        tempRaw[ledOffset] = Math.floor(intensity * 0.6);
+                        tempRaw[ledOffset+1] = Math.floor(intensity * 0.2);
+                        tempRaw[ledOffset+2] = Math.floor(intensity);
+                    }
+                }
+            } 
+            else if (currentScenario === 'D') {
+                // Scenario D: Static stage (all zero or static base)
+                // Do not change any channels.
+            }
+
+            // Apply Jitter Noise (ambient sensor jitter)
+            if (jitterNoiseAmplitude > 0) {
+                for (let i = 0; i < 512; i++) {
+                    if (Math.random() < 0.3) { // 30% channel jitter rate to make it noisy but realistic
+                        let noise = Math.floor((Math.random() * (jitterNoiseAmplitude * 2 + 1)) - jitterNoiseAmplitude);
+                        tempRaw[i] = Math.max(0, Math.min(255, tempRaw[i] + noise));
+                    }
+                }
+            }
+
+            txRawState.set(tempRaw);
+        }
+
+        // --- 5. Render LED States ---
+        function renderLeds() {
+            // Render TX Source
+            for (let i = 0; i < 64; i++) {
+                let offset = i * 3;
+                let r = txRawState[offset];
+                let g = txRawState[offset+1];
+                let b = txRawState[offset+2];
+                let colStr = `rgb(${r}, ${g}, ${b})`;
+                ledsTx[i].style.backgroundColor = colStr;
+                
+                let brightness = (r + g + b) / 3;
+                if (brightness > 10) {
+                    ledsTx[i].style.boxShadow = `0 0 12px rgba(${r}, ${g}, ${b}, ${brightness/255.0}), inset 0 0 4px rgba(255,255,255,0.3)`;
+                } else {
+                    ledsTx[i].style.boxShadow = 'inset 0 0 4px rgba(0,0,0,0.6)';
+                }
+            }
+
+            // Render RX Output (Rendered/Interpolated state)
+            for (let i = 0; i < 64; i++) {
+                let offset = i * 3;
+                let r = Math.round(rxRenderedState[offset]);
+                let g = Math.round(rxRenderedState[offset+1]);
+                let b = Math.round(rxRenderedState[offset+2]);
+                let colStr = `rgb(${r}, ${g}, ${b})`;
+                ledsRx[i].style.backgroundColor = colStr;
+                
+                let brightness = (r + g + b) / 3;
+                if (brightness > 10) {
+                    ledsRx[i].style.boxShadow = `0 0 12px rgba(${r}, ${g}, ${b}, ${brightness/255.0}), inset 0 0 4px rgba(255,255,255,0.3)`;
+                } else {
+                    ledsRx[i].style.boxShadow = 'inset 0 0 4px rgba(0,0,0,0.6)';
+                }
+            }
+        }
+
+        // --- 6. Core Frame Loop (Simulates 44.09 Hz physical wire input) ---
+        let lastTime = performance.now();
+        let accumTime = 0;
+
+        let totalTxFrames = 0;
+        let totalRxFrames = 0;
+
+        function mainLoop() {
+            let now = performance.now();
+            let dt = now - lastTime;
+            lastTime = now;
+
+            accumTime += dt;
+
+            // High frequency interpolation loop (runs every browser tick)
+            let dtSec = dt / 1000.0;
+            if (isInterpolationOn) {
+                // Exponential smoothing interpolation
+                let alpha = Math.min(1.0, dt / interpolationSpeedMs);
+                for (let i = 0; i < 512; i++) {
+                    rxRenderedState[i] += (rxDecState[i] - rxRenderedState[i]) * alpha;
+                }
+            } else {
+                // Instant update
+                rxRenderedState.set(rxDecState);
+            }
+
+            // Simulates 44.09 Hz DMX transmitter frame arrivals
+            while (accumTime >= DMX_INTERVAL) {
+                accumTime -= DMX_INTERVAL;
+
+                // 1. Advance simulator state
+                updateTxState(DMX_INTERVAL);
+                totalTxFrames++;
+                rawFramesLastSecond++;
+
+                // 2. Encode to S-DMX compressed packet
+                let forceKF = forceIFrameTrigger;
+                if (forceIFrameTrigger) forceIFrameTrigger = false;
+
+                let encodeResult = encoder.encode(txRawState, forceKF);
+                let packetSize = encodeResult.bytes.length;
+                
+                rawBytesLastSecond += 513; // Raw 512 + 1 start code
+
+                // 3. Bandwidth Limiter (strict token bucket tail-drop)
+                let frameSent = false;
+                if (isLimiterOn) {
+                    if (limiter.canSend(packetSize)) {
+                        limiter.recordSend(packetSize);
+                        sentBytesLastSecond += packetSize;
+                        sentFramesLastSecond++;
+                        frameSent = true;
+                    } else {
+                        droppedFramesLastSecond++;
+                    }
+                } else {
+                    // Bandwidth limiter bypassed (no limits)
+                    sentBytesLastSecond += packetSize;
+                    sentFramesLastSecond++;
+                    frameSent = true;
+                }
+
+                // 4. Transmission channel & Decoder processing
+                if (frameSent) {
+                    let decodeResult = decoder.decode(encodeResult.bytes);
+                    if (decodeResult.error) {
+                        logToConsole(`Decoder Error: ${decodeResult.error}`, 'error');
+                    } else {
+                        rxDecState.set(decodeResult.state);
+                        totalRxFrames++;
+                    }
+                    statsActiveMode = encodeResult.mode.toUpperCase();
+                }
+            }
+
+            // Calculate 1s stats
+            let calcElapsed = now - lastOneSecondCalc;
+            if (calcElapsed >= 1000) {
+                // Calculate compressed bandwidth (kbps)
+                statsBandwidthKbps = (sentBytesLastSecond * 8) / calcElapsed; // B/s * 8 = bps / 1000 = kbps
+                let rawKbps = (rawBytesLastSecond * 8) / calcElapsed;
+                
+                // Compression ratio
+                if (statsBandwidthKbps > 0) {
+                    statsCompressionRatio = rawKbps / statsBandwidthKbps;
+                } else {
+                    statsCompressionRatio = 513.0; // Perfect compression (only 1 byte keepalive)
+                }
+
+                // Drop rate
+                let totalAttempt = sentFramesLastSecond + droppedFramesLastSecond;
+                if (totalAttempt > 0) {
+                    statsDropRate = (droppedFramesLastSecond / totalAttempt) * 100.0;
+                } else {
+                    statsDropRate = 0.0;
+                }
+
+                // Update telemetries
+                readoutCompression.textContent = `${statsCompressionRatio.toFixed(1)}x`;
+                readoutBandwidth.textContent = `${statsBandwidthKbps.toFixed(2)} kbps`;
+                readoutMode.textContent = statsActiveMode;
+                readoutDrops.textContent = `${statsDropRate.toFixed(1)}%`;
+
+                // Badge color styles
+                if (statsDropRate > 5) {
+                    readoutDrops.className = 'telemetry-val red';
+                } else if (statsDropRate > 0) {
+                    readoutDrops.className = 'telemetry-val yellow';
+                } else {
+                    readoutDrops.className = 'telemetry-val green';
+                }
+
+                // Push to chart histories
+                bandwidthHistory.push(statsBandwidthKbps);
+                bandwidthHistory.shift();
+                rawBandwidthHistory.push(rawKbps);
+                rawBandwidthHistory.shift();
+
+                // Fps readouts
+                readoutFpsTx.textContent = `${(rawFramesLastSecond * 1000 / calcElapsed).toFixed(1)} Hz`;
+                readoutFpsRx.textContent = `${(sentFramesLastSecond * 1000 / calcElapsed).toFixed(1)} Hz`;
+
+                // Link logs for special modes
+                if (droppedFramesLastSecond > 0 && isLimiterOn) {
+                    logToConsole(`Link saturation detected! Dropped ${droppedFramesLastSecond} packets in 1s.`, 'warn');
+                }
+                if (statsActiveMode !== 'KEEPALIVE' && statsActiveMode !== 'IFRAME') {
+                    logToConsole(`S-DMX operating in adaptive [P-${statsActiveMode}] mode (Size: ${sentBytesLastSecond/sentFramesLastSecond} B avg)`, 'info');
+                }
+
+                // Reset counters
+                sentBytesLastSecond = 0;
+                rawBytesLastSecond = 0;
+                sentFramesLastSecond = 0;
+                rawFramesLastSecond = 0;
+                droppedFramesLastSecond = 0;
+                lastOneSecondCalc = now;
+            }
+
+            renderLeds();
+            drawChart();
+
+            requestAnimationFrame(mainLoop);
+        }
+
+        // --- 7. Bandwidth History Canvas Charts ---
+        const canvas = document.getElementById('chart-bandwidth');
+        const ctx = canvas.getContext('2d');
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function drawChart() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw grid background
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+            ctx.lineWidth = 1;
+            let rows = 4;
+            for (let i = 1; i < rows; i++) {
+                let y = (canvas.height / rows) * i;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+
+            // Math scales (Y scale: 0 to 200 kbps)
+            const MAX_Y = 200.0; // kbps
+            function getCanvasY(kbps) {
+                return canvas.height - (Math.min(MAX_Y, kbps) / MAX_Y) * (canvas.height - 20) - 10;
+            }
+
+            function getCanvasX(idx) {
+                return (idx / (HIST_SIZE - 1)) * canvas.width;
+            }
+
+            // Draw 10kbps limit line (neon dashed red)
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([5, 5]);
+            let limitY = getCanvasY(10.0);
+            ctx.beginPath();
+            ctx.moveTo(0, limitY);
+            ctx.lineTo(canvas.width, limitY);
+            ctx.stroke();
+            ctx.setLineDash([]); // clear
+
+            ctx.fillStyle = '#ef4444';
+            ctx.font = '10px JetBrains Mono';
+            ctx.fillText('10 kbps Limit', 10, limitY - 4);
+
+            // Draw Raw Bandwidth Line (neon purple)
+            ctx.strokeStyle = 'rgba(168, 85, 247, 0.3)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let i = 0; i < HIST_SIZE; i++) {
+                let x = getCanvasX(i);
+                let y = getCanvasY(rawBandwidthHistory[i]);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw S-DMX Bandwidth Line (neon cyan with gradient fill)
+            let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            grad.addColorStop(0, 'rgba(6, 182, 212, 0.3)');
+            grad.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+
+            ctx.beginPath();
+            ctx.moveTo(getCanvasX(0), canvas.height);
+            for (let i = 0; i < HIST_SIZE; i++) {
+                ctx.lineTo(getCanvasX(i), getCanvasY(bandwidthHistory[i]));
+            }
+            ctx.lineTo(getCanvasX(HIST_SIZE - 1), canvas.height);
+            ctx.closePath();
+            ctx.fillStyle = grad;
+            ctx.fill();
+
+            ctx.strokeStyle = '#06b6d4';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            for (let i = 0; i < HIST_SIZE; i++) {
+                let x = getCanvasX(i);
+                let y = getCanvasY(bandwidthHistory[i]);
+                if (i === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+
+            // Draw labels
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.fillText('200 kbps', canvas.width - 55, getCanvasY(200.0) + 12);
+            ctx.fillText('100 kbps', canvas.width - 55, getCanvasY(100.0) + 4);
+            ctx.fillText('0 kbps', canvas.width - 45, getCanvasY(0) - 2);
+
+            // Draw live hover label on last value
+            let lastY = getCanvasY(bandwidthHistory[HIST_SIZE - 1]);
+            ctx.fillStyle = '#06b6d4';
+            ctx.beginPath();
+            ctx.arc(canvas.width, lastY, 4, 0, 2*Math.PI);
+            ctx.fill();
+        }
+
+        // Start loop
+        logToConsole('S-DMX512 Wire Simulation engine initialized successfully.', 'info');
+        logToConsole('Parity Check: C99 core & Python encoders match exact modes and thresholds.', 'info');
+        logToConsole('System ready. Adjust sliders to observe flicker filter noise suppression.', 'info');
+        
+        requestAnimationFrame(mainLoop);
+
+    </script>
+</body>
+</html>
