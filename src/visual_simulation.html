@@ -583,14 +583,25 @@
                 </div>
                 <div class="control-group">
                     <div class="toggle-container">
-                        <span class="control-label" style="margin-bottom: 0;">Bandwidth Limiter (10kbps)</span>
+                        <span class="control-label" style="margin-bottom: 0;">Bandwidth Limiter (<span id="readout-limiter-toggle-label">10</span>kbps)</span>
                         <label class="switch">
                             <input type="checkbox" id="toggle-limiter" checked>
                             <span class="slider"></span>
                         </label>
                     </div>
                     <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
-                        Clamps output transmission rate strictly at 1250 B/s (10 kbps). Drops packages on saturation.
+                        Clamps output transmission rate strictly at the selected rate limit. Drops packages on saturation.
+                    </div>
+                </div>
+
+                <div class="control-group" id="group-bandwidth-slider" style="margin-top: 15px;">
+                    <label class="control-label" for="slider-bandwidth-limit">
+                        Limiter Rate (FSK Link)
+                        <span class="control-val-readout" id="readout-slider-bandwidth-limit">10 kbps</span>
+                    </label>
+                    <input type="range" id="slider-bandwidth-limit" min="2" max="100" step="1" value="10">
+                    <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+                        Adjust the physical simulated FSK channel capacity. Lower limits trigger aggressive package tail-dropping.
                     </div>
                 </div>
 
@@ -626,7 +637,7 @@
                     <div>
                         <span style="display:inline-block; width:10px; height:10px; background:var(--cyan-glow); margin-right:4px;"></span>S-DMX
                         <span style="display:inline-block; width:10px; height:10px; background:var(--purple-glow); margin-right:4px; margin-left:10px;"></span>Raw Payload
-                        <span style="display:inline-block; width:10px; height:2px; background:var(--red-glow); margin-right:4px; margin-left:10px; border-top:1px dashed var(--red-glow);"></span>10kbps Limit
+                        <span style="display:inline-block; width:10px; height:2px; background:var(--red-glow); margin-right:4px; margin-left:10px; border-top:1px dashed var(--red-glow);"></span><span id="legend-limiter-label">10</span>kbps Limit
                     </div>
                 </div>
                 <div class="canvas-container">
@@ -673,7 +684,7 @@
 
     <footer>
         <div>S-DMX Protocol Engine: <span style="font-family: var(--font-mono); font-size: 11px;">v1.0.4 (Mathematical Parity)</span></div>
-        <div>Standard DMX512 wire-rate: <span style="color:var(--purple-glow);">250.0 kbps</span> | Physical FSK Link: <span style="color:var(--cyan-glow);">10.0 kbps</span></div>
+        <div>Standard DMX512 wire-rate: <span style="color:var(--purple-glow);">250.0 kbps</span> | Physical FSK Link: <span id="readout-footer-fsk" style="color:var(--cyan-glow);">10.0 kbps</span></div>
     </footer>
 
     <script>
@@ -912,6 +923,7 @@
         let isLimiterOn = true;
         let isInterpolationOn = true;
         let interpolationSpeedMs = 150;
+        let bandwidthLimitKbps = 10;
 
         let encoder = new SDMXEncoder(flickerThreshold);
         let decoder = new SDMXDecoder();
@@ -963,6 +975,12 @@
         const toggleInterpolation = document.getElementById('toggle-interpolation');
         const sliderInterp = document.getElementById('slider-interpolation-speed');
         const readoutSliderInterp = document.getElementById('readout-slider-interp');
+        const sliderBandwidthLimit = document.getElementById('slider-bandwidth-limit');
+        const readoutSliderBandwidthLimit = document.getElementById('readout-slider-bandwidth-limit');
+        const readoutLimiterToggleLabel = document.getElementById('readout-limiter-toggle-label');
+        const badgeRateMode = document.getElementById('badge-rate-mode');
+        const readoutFooterFsk = document.getElementById('readout-footer-fsk');
+        const legendLimiterLabel = document.getElementById('legend-limiter-label');
 
         const gridTx = document.getElementById('grid-tx');
         const gridRx = document.getElementById('grid-rx');
@@ -1008,9 +1026,28 @@
             logToConsole(`Thermal Channel Jitter set to ±${jitterNoiseAmplitude} LSB`, 'info');
         });
 
+        function updateLimiterRate(kbps) {
+            let maxBytesPerSec = (kbps * 1000) / 8;
+            limiter.maxBytesPerSec = maxBytesPerSec;
+            limiter.capacity = maxBytesPerSec; // 1-second burst capacity
+            limiter.tokens = Math.min(limiter.capacity, limiter.tokens);
+        }
+
         toggleLimiter.addEventListener('change', (e) => {
             isLimiterOn = e.target.checked;
-            logToConsole(`10kbps FSK Token Bucket Limiter ${isLimiterOn ? 'ENABLED' : 'DISABLED'}`, isLimiterOn ? 'info' : 'warn');
+            logToConsole(`${bandwidthLimitKbps}kbps FSK Token Bucket Limiter ${isLimiterOn ? 'ENABLED' : 'DISABLED'}`, isLimiterOn ? 'info' : 'warn');
+        });
+
+        sliderBandwidthLimit.addEventListener('input', (e) => {
+            bandwidthLimitKbps = parseInt(e.target.value);
+            readoutSliderBandwidthLimit.textContent = `${bandwidthLimitKbps} kbps`;
+            readoutLimiterToggleLabel.textContent = bandwidthLimitKbps;
+            badgeRateMode.textContent = `S-FSK FSK-${bandwidthLimitKbps}K`;
+            if (readoutFooterFsk) readoutFooterFsk.textContent = `${bandwidthLimitKbps}.0 kbps`;
+            if (legendLimiterLabel) legendLimiterLabel.textContent = bandwidthLimitKbps;
+            
+            updateLimiterRate(bandwidthLimitKbps);
+            logToConsole(`Bandwidth limit adjusted to ${bandwidthLimitKbps} kbps (${limiter.maxBytesPerSec} Bytes/s)`, 'info');
         });
 
         toggleInterpolation.addEventListener('change', (e) => {
@@ -1401,20 +1438,20 @@
                 return (idx / (HIST_SIZE - 1)) * canvas.width;
             }
 
-            // Draw 10kbps limit line (neon dashed red)
-            ctx.strokeStyle = '#ef4444';
+            // Draw limit line (neon dashed red)
+            ctx.strokeStyle = isLimiterOn ? '#ef4444' : 'rgba(239, 68, 68, 0.3)';
             ctx.lineWidth = 1.5;
             ctx.setLineDash([5, 5]);
-            let limitY = getCanvasY(10.0);
+            let limitY = getCanvasY(bandwidthLimitKbps);
             ctx.beginPath();
             ctx.moveTo(0, limitY);
             ctx.lineTo(canvas.width, limitY);
             ctx.stroke();
             ctx.setLineDash([]); // clear
 
-            ctx.fillStyle = '#ef4444';
+            ctx.fillStyle = isLimiterOn ? '#ef4444' : 'rgba(239, 68, 68, 0.5)';
             ctx.font = '10px JetBrains Mono';
-            ctx.fillText('10 kbps Limit', 10, limitY - 4);
+            ctx.fillText(`${bandwidthLimitKbps} kbps Limit${isLimiterOn ? '' : ' (Disabled)'}`, 10, limitY - 4);
 
             // Draw Raw Bandwidth Line (neon purple)
             ctx.strokeStyle = 'rgba(168, 85, 247, 0.3)';
