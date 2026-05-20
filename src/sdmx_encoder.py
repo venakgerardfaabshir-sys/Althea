@@ -34,7 +34,7 @@ class SDMXEncoder:
         changed_indices = [i for i in range(512) if filtered_data[i] != self.last_state[i]]
         
         # If force_keyframe or too many channels changed, fallback to I-Frame
-        if force_keyframe or len(changed_indices) > 150:
+        if force_keyframe or len(changed_indices) > 400:
             header = (seq << 4) | 0x01
             self.last_state = filtered_data
             return bytes([header]) + filtered_data

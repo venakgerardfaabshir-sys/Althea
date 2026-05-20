@@ -49,7 +49,7 @@ uint16_t dmx_compress(DMX_Compressor *c, const uint8_t *current_slots, uint8_t *
     }
 
     // 3. Forced I-Frame or too many changes
-    if (force_keyframe || changed_count > 150) {
+    if (force_keyframe || changed_count > 400) {
         if (out_max >= 513) {
             out_buf[0] = (seq << 4) | 0x01;
             memcpy(&out_buf[1], filtered, DMX_SLOT_COUNT);
