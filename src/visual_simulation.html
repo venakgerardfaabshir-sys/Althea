@@ -1029,7 +1029,7 @@
         function updateLimiterRate(kbps) {
             let maxBytesPerSec = (kbps * 1000) / 8;
             limiter.maxBytesPerSec = maxBytesPerSec;
-            limiter.capacity = maxBytesPerSec; // 1-second burst capacity
+            limiter.capacity = Math.max(513, maxBytesPerSec); // Lower-bound capacity at 513 bytes to prevent token deadlocks on full DMX I-frames
             limiter.tokens = Math.min(limiter.capacity, limiter.tokens);
         }
 
@@ -1047,7 +1047,9 @@
             if (legendLimiterLabel) legendLimiterLabel.textContent = bandwidthLimitKbps;
             
             updateLimiterRate(bandwidthLimitKbps);
-            logToConsole(`Bandwidth limit adjusted to ${bandwidthLimitKbps} kbps (${limiter.maxBytesPerSec} Bytes/s)`, 'info');
+            // Instantly schedule a re-sync keyframe on slider adjustments
+            forceIFrameTrigger = true;
+            logToConsole(`Bandwidth limit adjusted to ${bandwidthLimitKbps} kbps. Triggering immediate keyframe re-sync...`, 'info');
         });
 
         toggleInterpolation.addEventListener('change', (e) => {
@@ -1295,6 +1297,11 @@
                 // 2. Encode to S-DMX compressed packet
                 let forceKF = forceIFrameTrigger;
                 if (forceIFrameTrigger) forceIFrameTrigger = false;
+
+                // Periodically force an I-frame to restore sync on packet loss (every 180 frames ~4.08s)
+                if (totalTxFrames % 180 === 0) {
+                    forceKF = true;
+                }
 
                 let encodeResult = encoder.encode(txRawState, forceKF);
                 let packetSize = encodeResult.bytes.length;
