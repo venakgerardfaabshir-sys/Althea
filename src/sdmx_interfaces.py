@@ -14,13 +14,16 @@ class BandwidthController:
         self.tokens = min(self.capacity, self.tokens + elapsed * self.rate)
         self.last_update = now
 
-    def can_send(self, size_bytes: int) -> bool:
+    def can_send(self, size_bytes: int, is_high_priority: bool = False) -> bool:
         self._refund()
+        if is_high_priority and self.tokens >= 0:
+            return True
         return self.tokens >= size_bytes
 
     def record_send(self, size_bytes: int):
         self._refund()
-        self.tokens = max(0.0, self.tokens - size_bytes)
+        # Allow tokens to go negative for overdraft to strictly maintain long-term average bandwidth rate
+        self.tokens -= size_bytes
 
 
 class DMXTimingRestorer:

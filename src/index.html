@@ -903,8 +903,11 @@
                 this.tokens = Math.min(this.capacity, this.tokens + elapsedSec * this.maxBytesPerSec);
             }
 
-            canSend(size) {
+            canSend(size, isHighPriority = false) {
                 this.replenish();
+                if (isHighPriority && this.tokens >= 0) {
+                    return true;
+                }
                 return this.tokens >= size;
             }
 
@@ -1268,6 +1271,10 @@
         function mainLoop() {
             let now = performance.now();
             let dt = now - lastTime;
+            // Clamp dt to 250ms to prevent "spiral of death" and huge synchronous bursts on tab switch or page load
+            if (dt > 250) {
+                dt = 250;
+            }
             lastTime = now;
 
             accumTime += dt;
@@ -1308,10 +1315,12 @@
                 
                 rawBytesLastSecond += 513; // Raw 512 + 1 start code
 
-                // 3. Bandwidth Limiter (strict token bucket tail-drop)
+                // 3. Bandwidth Limiter (strict token bucket tail-drop with high-priority overdraft)
+                let frameType = encodeResult.bytes[0] & 0x0F;
+                let isHighPriority = (frameType === 0x01); // 0x01 is I-Frame
                 let frameSent = false;
                 if (isLimiterOn) {
-                    if (limiter.canSend(packetSize)) {
+                    if (limiter.canSend(packetSize, isHighPriority)) {
                         limiter.recordSend(packetSize);
                         sentBytesLastSecond += packetSize;
                         sentFramesLastSecond++;
